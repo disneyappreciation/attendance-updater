@@ -1,3 +1,4 @@
 *.csv
 client_secret.json
 .env
+.idea

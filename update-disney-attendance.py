@@ -1,24 +1,15 @@
-from __future__ import print_function
-
 import os
 import re
 
-import chalk  # pip install pychalk
+import chalk
 import httplib2
 from apiclient import discovery
-from dotenv import load_dotenv, find_dotenv  # pip install python-dotenv
-from oauth2client import client  # pip install google-api-python-client
+from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
+import argparse
 
-try:
-    import argparse
-
-    flags = argparse.ArgumentParser(parents = [tools.argparser]).parse_args()
-except ImportError:
-    flags = None
-
-load_dotenv(find_dotenv())
+flags = argparse.ArgumentParser(parents = [tools.argparser]).parse_args()
 
 SCOPES = 'https://www.googleapis.com/auth/spreadsheets'
 CLIENT_SECRET_FILE = 'client_secret.json'
@@ -27,10 +18,6 @@ APPLICATION_NAME = 'Attendance Update Script'
 spreadsheet_id = os.environ.get('SPREADSHEET_ID')
 event_column = os.environ.get('EVENT_COLUMN')
 sheet_name = os.environ.get('SHEET_NAME')
-first_row = os.environ.get('FIRST_ROW')
-last_row = os.environ.get('LAST_ROW')
-first_column = os.environ.get('FIRST_COLUMN')
-last_column = os.environ.get('LAST_COLUMN')
 
 
 def get_credentials():
@@ -45,21 +32,22 @@ def get_credentials():
     if not credentials or credentials.invalid:
         flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
         flow.user_agent = APPLICATION_NAME
-        if flags:
-            credentials = tools.run_flow(flow, store, flags)
-        else:  # Needed only for compatibility with Python 2.6
-            credentials = tools.run(flow, store)
+        credentials = tools.run_flow(flow, store, flags)
         print('Storing credentials to ' + credential_path)
     return credentials
 
 
 def get_row_number_of_person(spreadsheet, person):
+    first_name = 0
+    last_name = 1
+
     for i in range(len(spreadsheet)):
         item = spreadsheet[i]
         if len(item) == 0:
             continue
 
-        if item[0].lower() == person[0].lower() and item[1].lower() == person[1].lower():
+        if item[first_name].lower() == person[first_name].lower() and \
+           item[last_name].lower() == person[last_name].lower():
             return i
     return -1
 
@@ -76,10 +64,10 @@ def add_x_at(service, row, column):
 
 def insert_new_person(service, person):
     person_info = person[0:3]
-    person_info.extend(['x' if n == (ord(event_column) - ord(first_column) - 3) else ''
-                        for n in range(ord(last_column) - ord(first_column) - 3)])
+    person_info.extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
+                        for n in range(ord(event_column) - ord('A') - 2)])
 
-    range_name = sheet_name + '!' + first_column + first_row + ':' + last_column + last_row
+    range_name = sheet_name + '!A3:' + event_column + str(get_last_row(service) + 1)
     value_input_option = 'RAW'
     value_range_body = {'values': [person_info]}
     request = service.spreadsheets().values().append(spreadsheetId = spreadsheet_id, range = range_name,
@@ -91,8 +79,7 @@ def parse_file():
     csv = open(os.environ.get("FILE"), 'r')
     lines = csv.readlines()
     csv.close()
-    new_records = [[strip_non_ascii(thing) for thing in line.split(',')] for line in lines]
-    return new_records
+    return [[strip_non_ascii(thing) for thing in line.split(',')] for line in lines]
 
 
 def strip_non_ascii(s):
@@ -101,22 +88,29 @@ def strip_non_ascii(s):
 
 
 def print_summary(already_accounted_for, not_in_spreadsheet, updated):
-    chalk.red('People added to the spreadsheet:', opts = ('bold', 'underscore'))
+    print chalk.red('People added to the spreadsheet:', bold = True, underline = True)
     for person in not_in_spreadsheet:
-        chalk.red('    - %s %s' % (person[0], person[1]))
-    print()
-    chalk.yellow('People already accounted for:', opts = ('bold', 'underscore'))
+        print chalk.red('    - %s %s' % (person[0], person[1]))
+    print
+    print chalk.yellow('People already accounted for:', bold = True, underline = True)
     for person in already_accounted_for:
-        chalk.yellow('    - %s %s' % (person[0], person[1]))
-    print()
-    chalk.green('People updated:', opts = ('bold', 'underscore'))
+        print chalk.yellow('    - %s %s' % (person[0], person[1]))
+    print
+    print chalk.green('People updated:', bold = True, underline = True)
     for person in updated:
-        chalk.green('    - %s %s' % (person[0], person[1]))
-    print()
+        print chalk.green('    - %s %s' % (person[0], person[1]))
+    print
+
+
+def get_last_row(service):
+    range_name = sheet_name + '!A3:A'
+    result = service.spreadsheets().values().get(spreadsheetId = spreadsheet_id, range = range_name).execute()
+    current_attendance = result.get('values', [])
+    return len(current_attendance) + 3
 
 
 def get_current_attendance(service):
-    range_name = sheet_name + '!' + first_column + first_row + ':' + last_column + last_row
+    range_name = sheet_name + '!A3:' + event_column + str(get_last_row(service))
     result = service.spreadsheets().values().get(spreadsheetId = spreadsheet_id, range = range_name).execute()
     current_attendance = result.get('values', [])
     return current_attendance

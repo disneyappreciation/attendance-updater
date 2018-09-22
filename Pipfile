@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+argparse = "*"
+google-api-python-client = "*"
+pychalk = "*"
+"oauth2client" = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "2.7"
+
+[scripts]
+script = "python ./update-disney-attendance.py"
