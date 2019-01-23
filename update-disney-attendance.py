@@ -19,6 +19,13 @@ spreadsheet_id = os.environ.get('SPREADSHEET_ID')
 event_column = os.environ.get('EVENT_COLUMN')
 sheet_name = os.environ.get('SHEET_NAME')
 
+spreadsheet = []
+service = None
+
+###########################
+# Update Global Variables #
+###########################
+
 
 def get_credentials():
     home_dir = os.path.expanduser('~')
@@ -37,12 +44,59 @@ def get_credentials():
     return credentials
 
 
-def get_row_number_of_person(spreadsheet, person):
+def get_current_attendance():
+    global spreadsheet
+    if spreadsheet:
+        return spreadsheet
+
+    range_name = sheet_name + '!A3:' + event_column + str(get_last_row())
+    result = get_service().spreadsheets().values()\
+        .get(spreadsheetId = spreadsheet_id, range = range_name).execute()
+    current_attendance = result.get('values', [])
+
+    spreadsheet = current_attendance
+    return current_attendance
+
+
+def get_service():
+    global service
+    if service:
+        return service
+
+    credentials = get_credentials()
+    http = credentials.authorize(httplib2.Http())
+    discovery_url = 'https://sheets.googleapis.com/$discovery/rest?version=v4'
+    service = discovery.build('sheets', 'v4', http = http, discoveryServiceUrl = discovery_url)
+    return service
+
+
+#####################
+# Parsing CSV Files #
+#####################
+
+
+def parse_file():
+    csv = open(os.environ.get("FILE"), 'r')
+    lines = csv.readlines()
+    csv.close()
+    return [[strip_non_ascii(thing) for thing in line.split(',')] for line in lines]
+
+
+def strip_non_ascii(s):
+    r = re.sub(r'[^A-Za-z\'.@]', '', s)
+    return r if isinstance(r, str) else r.decode('utf-8-sig')
+
+
+##############################
+# Spreadsheet Helper Methods #
+##############################
+
+def get_row_number_of_person(sheet, person):
     first_name = 0
     last_name = 1
 
-    for i in range(len(spreadsheet)):
-        item = spreadsheet[i]
+    for i in range(len(sheet)):
+        item = sheet[i]
         if len(item) == 0:
             continue
 
@@ -67,7 +121,7 @@ def insert_new_person(service, person):
     person_info.extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
                         for n in range(ord(event_column) - ord('A') - 2)])
 
-    range_name = sheet_name + '!A3:' + event_column + str(get_last_row(service) + 1)
+    range_name = sheet_name + '!A3:' + event_column + str(get_last_row() + 1)
     value_input_option = 'RAW'
     value_range_body = {'values': [person_info]}
     request = service.spreadsheets().values().append(spreadsheetId = spreadsheet_id, range = range_name,
@@ -75,16 +129,21 @@ def insert_new_person(service, person):
     request.execute()
 
 
-def parse_file():
-    csv = open(os.environ.get("FILE"), 'r')
-    lines = csv.readlines()
-    csv.close()
-    return [[strip_non_ascii(thing) for thing in line.split(',')] for line in lines]
+def get_last_row():
+    range_name = sheet_name + '!A3:A'
+    result = get_service().spreadsheets().values()\
+        .get(spreadsheetId = spreadsheet_id, range = range_name).execute()
+    current_attendance = result.get('values', [])
+    return len(current_attendance) + 3
 
 
-def strip_non_ascii(s):
-    r = re.sub(r'[^A-Za-z\'.@]', '', s)
-    return r if isinstance(r, str) else r.decode('utf-8-sig')
+def update_spreadsheet():
+    return None
+
+
+########
+# Main #
+########
 
 
 def print_summary(already_accounted_for, not_in_spreadsheet, updated):
@@ -102,31 +161,8 @@ def print_summary(already_accounted_for, not_in_spreadsheet, updated):
     print
 
 
-def get_last_row(service):
-    range_name = sheet_name + '!A3:A'
-    result = service.spreadsheets().values().get(spreadsheetId = spreadsheet_id, range = range_name).execute()
-    current_attendance = result.get('values', [])
-    return len(current_attendance) + 3
-
-
-def get_current_attendance(service):
-    range_name = sheet_name + '!A3:' + event_column + str(get_last_row(service))
-    result = service.spreadsheets().values().get(spreadsheetId = spreadsheet_id, range = range_name).execute()
-    current_attendance = result.get('values', [])
-    return current_attendance
-
-
-def get_service():
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
-    discovery_url = 'https://sheets.googleapis.com/$discovery/rest?version=v4'
-    service = discovery.build('sheets', 'v4', http = http, discoveryServiceUrl = discovery_url)
-    return service
-
-
 def main():
-    service = get_service()
-    current_attendance = get_current_attendance(service)
+    get_current_attendance()
 
     new_records = parse_file()
     not_in_spreadsheet = []
@@ -134,13 +170,13 @@ def main():
     updated = []
 
     for record in new_records:
-        row_num = get_row_number_of_person(current_attendance, record)
+        row_num = get_row_number_of_person(spreadsheet, record)
         column_num = ord(event_column) - ord('A')
 
         if row_num == -1:
             insert_new_person(service, record)
             not_in_spreadsheet.append(record)
-        elif len(current_attendance[row_num]) > column_num and current_attendance[row_num][column_num] == 'x':
+        elif len(spreadsheet[row_num]) > column_num and spreadsheet[row_num][column_num] == 'x':
             already_accounted_for.append(record)
         else:
             add_x_at(service, row_num, event_column)
