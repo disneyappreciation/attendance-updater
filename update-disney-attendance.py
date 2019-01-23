@@ -149,8 +149,10 @@ def main():
         column_num = ord(event_column) - ord('A')
 
         if row_num == -1:
-            spreadsheet.append(record[0:3].extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
-                                                   for n in range(ord(event_column) - ord('A') - 2)]))
+            row = record[0:3]
+            row.extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
+                       for n in range(ord(event_column) - ord('A') - 2)])
+            spreadsheet.append(row)
             not_in_spreadsheet.append(record)
         elif len(spreadsheet[row_num]) > column_num and spreadsheet[row_num][column_num] == 'x':
             already_accounted_for.append(record)
