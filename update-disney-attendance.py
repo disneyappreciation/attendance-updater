@@ -22,6 +22,7 @@ sheet_name = os.environ.get('SHEET_NAME')
 spreadsheet = []
 service = None
 
+
 ###########################
 # Update Global Variables #
 ###########################
@@ -49,8 +50,8 @@ def get_current_attendance():
     if spreadsheet:
         return spreadsheet
 
-    range_name = sheet_name + '!A3:' + event_column + str(get_last_row())
-    result = get_service().spreadsheets().values()\
+    range_name = sheet_name + '!A3:' + event_column
+    result = get_service().spreadsheets().values() \
         .get(spreadsheetId = spreadsheet_id, range = range_name).execute()
     current_attendance = result.get('values', [])
 
@@ -91,12 +92,12 @@ def strip_non_ascii(s):
 # Spreadsheet Helper Methods #
 ##############################
 
-def get_row_number_of_person(sheet, person):
+def get_row_number_of_person(person):
     first_name = 0
     last_name = 1
 
-    for i in range(len(sheet)):
-        item = sheet[i]
+    for i in range(len(spreadsheet)):
+        item = spreadsheet[i]
         if len(item) == 0:
             continue
 
@@ -106,39 +107,13 @@ def get_row_number_of_person(sheet, person):
     return -1
 
 
-def add_x_at(service, row, column):
-    sheet_range = sheet_name + '!' + column + str(row + 3)
+def update_spreadsheet():
+    range_name = sheet_name + '!A3:' + event_column + str(len(spreadsheet) + 4)
     value_input_option = 'RAW'
-    value_range_body = {'values': [['x']]}
-    request = service.spreadsheets().values().update(spreadsheetId = spreadsheet_id, range = sheet_range,
-                                                     valueInputOption = value_input_option,
-                                                     body = value_range_body)
-    request.execute()
-
-
-def insert_new_person(service, person):
-    person_info = person[0:3]
-    person_info.extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
-                        for n in range(ord(event_column) - ord('A') - 2)])
-
-    range_name = sheet_name + '!A3:' + event_column + str(get_last_row() + 1)
-    value_input_option = 'RAW'
-    value_range_body = {'values': [person_info]}
+    value_range_body = {'values': spreadsheet}
     request = service.spreadsheets().values().append(spreadsheetId = spreadsheet_id, range = range_name,
                                                      valueInputOption = value_input_option, body = value_range_body)
     request.execute()
-
-
-def get_last_row():
-    range_name = sheet_name + '!A3:A'
-    result = get_service().spreadsheets().values()\
-        .get(spreadsheetId = spreadsheet_id, range = range_name).execute()
-    current_attendance = result.get('values', [])
-    return len(current_attendance) + 3
-
-
-def update_spreadsheet():
-    return None
 
 
 ########
@@ -170,18 +145,20 @@ def main():
     updated = []
 
     for record in new_records:
-        row_num = get_row_number_of_person(spreadsheet, record)
+        row_num = get_row_number_of_person(record)
         column_num = ord(event_column) - ord('A')
 
         if row_num == -1:
-            insert_new_person(service, record)
+            spreadsheet.append(record[0:3].extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
+                                                   for n in range(ord(event_column) - ord('A') - 2)]))
             not_in_spreadsheet.append(record)
         elif len(spreadsheet[row_num]) > column_num and spreadsheet[row_num][column_num] == 'x':
             already_accounted_for.append(record)
         else:
-            add_x_at(service, row_num, event_column)
+            spreadsheet[row_num][column_num] = 'x'
             updated.append(record)
 
+    update_spreadsheet()
     print_summary(already_accounted_for, not_in_spreadsheet, updated)
 
 
