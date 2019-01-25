@@ -9,7 +9,7 @@ from oauth2client import tools
 from oauth2client.file import Storage
 import argparse
 
-flags = argparse.ArgumentParser(parents = [tools.argparser]).parse_args()
+flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
 
 SCOPES = 'https://www.googleapis.com/auth/spreadsheets'
 CLIENT_SECRET_FILE = 'client_secret.json'
@@ -52,7 +52,7 @@ def get_current_attendance():
 
     range_name = sheet_name + '!A3:' + event_column
     result = get_service().spreadsheets().values() \
-        .get(spreadsheetId = spreadsheet_id, range = range_name).execute()
+        .get(spreadsheetId=spreadsheet_id, range=range_name).execute()
     current_attendance = result.get('values', [])
 
     spreadsheet = current_attendance
@@ -67,7 +67,7 @@ def get_service():
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     discovery_url = 'https://sheets.googleapis.com/$discovery/rest?version=v4'
-    service = discovery.build('sheets', 'v4', http = http, discoveryServiceUrl = discovery_url)
+    service = discovery.build('sheets', 'v4', http=http, discoveryServiceUrl=discovery_url)
     return service
 
 
@@ -102,7 +102,7 @@ def get_row_number_of_person(person):
             continue
 
         if item[first_name].lower() == person[first_name].lower() and \
-           item[last_name].lower() == person[last_name].lower():
+                item[last_name].lower() == person[last_name].lower():
             return i
     return -1
 
@@ -111,8 +111,8 @@ def update_spreadsheet():
     range_name = sheet_name + '!A3:' + event_column + str(len(spreadsheet) + 4)
     value_input_option = 'RAW'
     value_range_body = {'values': spreadsheet}
-    request = service.spreadsheets().values().append(spreadsheetId = spreadsheet_id, range = range_name,
-                                                     valueInputOption = value_input_option, body = value_range_body)
+    request = service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=range_name,
+                                                     valueInputOption=value_input_option, body=value_range_body)
     request.execute()
 
 
@@ -122,15 +122,15 @@ def update_spreadsheet():
 
 
 def print_summary(already_accounted_for, not_in_spreadsheet, updated):
-    print chalk.red('People added to the spreadsheet:', bold = True, underline = True)
+    print chalk.red('People added to the spreadsheet:', bold=True, underline=True)
     for person in not_in_spreadsheet:
         print chalk.red('    - %s %s' % (person[0], person[1]))
     print
-    print chalk.yellow('People already accounted for:', bold = True, underline = True)
+    print chalk.yellow('People already accounted for:', bold=True, underline=True)
     for person in already_accounted_for:
         print chalk.yellow('    - %s %s' % (person[0], person[1]))
     print
-    print chalk.green('People updated:', bold = True, underline = True)
+    print chalk.green('People updated:', bold=True, underline=True)
     for person in updated:
         print chalk.green('    - %s %s' % (person[0], person[1]))
     print
@@ -151,13 +151,13 @@ def main():
         if row_num == -1:
             row = record[0:3]
             row.extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
-                       for n in range(ord(event_column) - ord('A') - 2)])
+                        for n in range(ord(event_column) - ord('A') - 2)])
             spreadsheet.append(row)
             not_in_spreadsheet.append(record)
         elif len(spreadsheet[row_num]) > column_num and spreadsheet[row_num][column_num] == 'x':
             already_accounted_for.append(record)
         else:
-            spreadsheet[row_num][column_num] = 'x'
+            spreadsheet[row_num].insert(column_num, 'x')
             updated.append(record)
 
     update_spreadsheet()
