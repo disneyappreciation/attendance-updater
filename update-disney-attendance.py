@@ -150,8 +150,7 @@ def main():
 
         if row_num == -1:
             row = record[0:3]
-            row.extend(['x' if n == (ord(event_column) - ord('A') - 3) else ''
-                        for n in range(ord(event_column) - ord('A') - 2)])
+            row.extend(['x' if n == column_num - 3 else '' for n in range(column_num + 1 - 3)])
             spreadsheet.append(row)
             not_in_spreadsheet.append(record)
         elif len(spreadsheet[row_num]) > column_num and spreadsheet[row_num][column_num] == 'x':
